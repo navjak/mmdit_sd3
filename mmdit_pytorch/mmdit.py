@@ -74,4 +74,3 @@ class JointAttention(nn.Module):
         # self.attention =    # write my own attention class --> args: (q, k, v, mask = all_masks)
 '''
 
-

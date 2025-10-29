@@ -1,9 +1,9 @@
-# Self attention block
-
-
 import torch
 from torch import nn
 import math
+
+
+# Self attention block (from navjak/base-transformer-NLP)
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, dropout: float = 0.1):
@@ -53,5 +53,6 @@ class MultiHeadAttention(nn.Module):
 
 
 
+# Joint Attention block
 
-class JointAttention(nn.Module):
+# class JointAttention(nn.Module)
