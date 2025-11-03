@@ -1,5 +1,5 @@
 import torch
-from torch import Tensor
+from torch import nn, Tensor
 import math
 
 from einops import rearrange, repeat, pack, unpack
@@ -70,7 +70,7 @@ class MultiHeadAttention(nn.Module):
 # Joint Attention block
 
 class JointAttention(nn.Module):
-    def __init__(self, dim_inputs: tuple[int, ...], dim_head = 64, num_heads = 8, qk_rmsnorm = False):
+    def __init__(self, dim_inputs: tuple[int, ...], dim_head = 64, num_heads = 8, qk_rmsnorm = False, flash_attn = False):
         
         super().__init__()
 
@@ -78,6 +78,7 @@ class JointAttention(nn.Module):
         self.dim_head = dim_head
         self.num_heads = num_heads
         self.qk_rmsnorm = qk_rmsnorm
+        self.flash_attn = flash_attn
 
         dim_inner = dim_head * num_heads
         self.num_inputs = len(dim_inputs)
@@ -92,8 +93,8 @@ class JointAttention(nn.Module):
         self.k_rmsnorm = (None,) * self.num_inputs
 
         if qk_rmsnorm:
-            self.q_rmsnorm = nn.ModuleList([MultiHeadRMSNorm(dim_head, heads = num_heads) for _ in range(num_inputs)])
-            self.k_rmsnorm = nn.ModuleList([MultiHeadRMSNorm(dim_head, heads = num_heads) for _ in range(num_inputs)])
+            self.q_rmsnorm = nn.ModuleList([MultiHeadRMSNorm(dim_head, heads = num_heads) for _ in range(self.num_inputs)])
+            self.k_rmsnorm = nn.ModuleList([MultiHeadRMSNorm(dim_head, heads = num_heads) for _ in range(self.num_inputs)])
         
         self.register_buffer('dummy', torch.tensor(0), persistent = False)
 
@@ -136,13 +137,36 @@ class JointAttention(nn.Module):
         # attention
         q, k, v = all_qkvs.chunk(3, dim=0)  # split into q, k, v
         
-        # reshape for MHA
-        q = rearrange(q, 'b h n d -> b n (h d)')
-        k = rearrange(k, 'b h n d -> b n (h d)')
-        v = rearrange(v, 'b h n d -> b n (h d)')
-        
-        # attention
-        output = self.attention(q, k, v, mask=all_masks)
+        if self.flash_attn:
+            # Import flash attention only if needed
+            try:
+                from flash_attn import flash_attn_func
+                # Flash attention expects shape: batch, seqlen, nheads, headdim
+                q = rearrange(q, 'b h n d -> b n h d')
+                k = rearrange(k, 'b h n d -> b n h d')
+                v = rearrange(v, 'b h n d -> b n h d')
+                
+                # Create attention mask for flash attention
+                mask = None
+                if exists(all_masks):
+                    mask = rearrange(all_masks, 'b n -> b 1 1 n')
+                    mask = mask.to(dtype=q.dtype)
+                
+                output = flash_attn_func(q, k, v, dropout_p=0.1, softmax_scale=None, causal=False, mask=mask)
+                output = rearrange(output, 'b n h d -> b n (h d)')
+                
+            except ImportError:
+                print("Warning: flash-attention not installed. Falling back to standard attention.")
+                q = rearrange(q, 'b h n d -> b n (h d)')
+                k = rearrange(k, 'b h n d -> b n (h d)')
+                v = rearrange(v, 'b h n d -> b n (h d)')
+                output = self.attention(q, k, v, mask=all_masks)
+        else:
+            # Standard attention
+            q = rearrange(q, 'b h n d -> b n (h d)')
+            k = rearrange(k, 'b h n d -> b n (h d)')
+            v = rearrange(v, 'b h n d -> b n (h d)')
+            output = self.attention(q, k, v, mask=all_masks)
         
         # separate by modality
         output = unpack(output, packed_shape, 'b * d')
