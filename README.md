@@ -7,11 +7,13 @@ PyTorch implementation of the **Multimodal Diffusion Transformer (MMDiT)** from 
 ---
 
 ## Installation
+<!--
 ```bash
 pip install mmdit-pytorch
 ````
 
 or from source:
+-->
 
 ```bash
 git clone https://github.com/navjak/mmdit-pytorch.git
@@ -25,7 +27,7 @@ pip install -e .
 
 ```python
 import torch
-from mmdit_pytorch import MMDiTBlock
+from mmdit_pytorch import MMDiTLayer
 
 # define MMDiT layer
 block = MMDiTLayer(
