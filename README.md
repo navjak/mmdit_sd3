@@ -1,8 +1,10 @@
 # MMDiT-PyTorch
 PyTorch implementation of the **Multimodal Diffusion Transformer (MMDiT)** from *Stable Diffusion 3*.
 
-> This release currently includes only the original 2-modality MMDiT (text–image).  
+<!--
+> This release currently includes only the original 2-modality MMDiT (text-image).  
 > The extended **n-modality** version will be added in a future release.
+-->
 
 ---
 
